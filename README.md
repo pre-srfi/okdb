@@ -1,4 +1,4 @@
-# `(import (okdb))`
+# 2021/04/10 - (import (okdb))
 
 ![The abstraction of architecture of the Abu Dhabi Louvre Museum ceiling it’s a piece of art on it’s own.](alvaro-pinot-czDvRp5V2b0-unsplash.jpg)
 
@@ -6,164 +6,317 @@
 
 **Rework draft.**
 
+## CHANGELOG
+
+- 2021/04/10: v0
+- 2021/04/23: misc
+
 ## Issues
 
-- Missing record types for cursor and transaction
-- No facility to implement
-  [HightContentionAllocator](https://activesphere.com/blog/2018/08/05/high-contention-allocator),
-  see also FDB's [Directory layer](https://git.io/JqCFP)
-- Add page (frame?) read and write middlewares to support compression
-  and cryptography.
-- Transaction begin, rollback, before and after commit hooks
-- No builtin support for hooks / watches / triggers (may be
-  unnecessary if transaction hooks exists).
-- Transaction retry?
-- In `make-okvslite` replace `args` with `make-okvslite-options`. Max
-  key and value size would be default values for their related option.
-- create a super predicate for db, transaction or cursor?
+- Transaction begin, rollback, before and after commit hooks are
+  missing (to implement triggers and inotfy)
 
-## Introduction
+- Transaction state is missing.
 
-### Abstract
+- Add specification about thread safety.
 
-TODO
+- Add a parameter `okdb-transaction-hygiene` that may be used to set
+  the desired serializability guarantee, possibly on a per transaction
+  basis with the help of `parametrize`. Using pseudonyms, that maybe
+  change over time: perfect, strong, weak, none. And also using SQL
+  standard names: serializable, snapshot-isolation...
 
-### Background
+- Add `okdb-cursor-positioned?`
 
-This project began in 2011 when @amirouche started looking for the
-perfect database to build the web application that would make Google a
-relic of the past.
+- Limit the key space to `#x00` until `#xFF` excluded, and use the
+  rest of the key space for something...
 
-Along the road they built several projects, in particular the [SRFI
-167](), [SRFI 168](), nomunofu, and babelia. The current work build
-and hopefully improve upon that. Together with the extensions, it will
-replace the need for most of SQL database features and extend them to
-support text search.
+## Abstract
 
-### Rational
+General purpose storage backend datastructure for building in-memory
+or on-disk databases that can handle concurrency thanks to ACID
+transactions.
 
-> For the projects I build I want to avoid changing syntax every now
-> and then. "Now and then" in backend development can be minutes to
-> seconds when you deal with an SQL database, or JSON wrapped in wanna
-> be *human* human-machine interface. Even more so with full-stack web
-> development.  Ordered Key-Value Store offer that opportunity to
-> write everything in your favorite programming language. Remain a
-> question: What about performance?
->
-> @amirouche
+## Rationale
 
-### Goals
+`okdb` can be the primitive datastructure for building many
+datastructures. Low level extensions include counter, bag, set, and
+mapping-multi. Higher level extensions include
+[Entity-Attribute-Value](https://en.wikipedia.org/wiki/Entity%E2%80%93attribute%E2%80%93value_model)
+possibly supported by datalog, Generic Tuple Store (nstore) inspired
+from [Resource Description
+Framework](https://en.wikipedia.org/wiki/Resource_Description_Framework)
+that can trivialy match the query capabilities of
+[SPARQL](https://www.w3.org/TR/rdf-sparql-query/), nstore can
+painlessly implement
+[RDF-star](https://w3c.github.io/rdf-star/cg-spec/2021-02-18.html), or
+even the Versioned Generic Tuple Store (vnstore), that ease the
+implementation of bitemporal databases, and datomic high level
+interfaces. Also, it is possible to implement a property graph
+database, ranked set, leaderboard, priority queue. It is possible to
+implement efficiently geometric queries such as xz-ordered curves.
 
-- Support multiple backend storage
-- Benchmark several backend storage
-- Benchmark against other database systems
+`okdb` is useful in the context of on-disk persistence. `okdb` is also
+useful in a context such as client-server applications, where the
+client need to cache heterogeneous data. It may be used in the
+browser, or in microservice configuration as a shared in-memory
+datastructure.
 
-### Non-goals
+There is several existing databases that expose an interface similar
+to `okdb`, and even more that use an ordered key-value store (okvs) as
+their backing storage.
 
-- No support for FoundationDB and other distributed OKVS.
+While `okdb` interface is lower-level than the mainstream SQL, it is
+arguably more useful because the implementation stems from a
+well-known datastructure part of every software engineering
+curriculum, namely binary trees, also because it allows to implement
+SQL, last but not least it reflects the current practice that builds
+(distributed) databases systems based on a similar interface.
 
-### Related
+`okdb` extends, and departs from the common okvs interface inherited
+from BerkeleyDB, to ease the implementation thanks to bounded keys and
+values, while making the implementation of efficient extensions easier
+also thanks to the ability to estimate between two keys the count of
+keys, and the size of key-value pairs.
 
-#### Extensions
-
-- [counter](counter/#readme)
-- [bag](bag/#readme)
-- [set](set/#readme)
-- [mapping-multi](mapping-multi/#readme)
-- [bstore](bstore/#readme): Binary object store
-- [ustore](ustore/#readme): uid allocator
-- [eavstore](eavstore/#readme): Entity-Attribute-Value
-- [nstore2](nstore2/#readme): Generic tuple store 2
-- [vnstore2](vnstore2/#readme): Versioned generic tuple store
-- kstore: Ranked set / leaderboard / priority queue
-- fstore: Approximate bytes lookup
-- xzstore: XZ-ordered curve
-- [scstore](scstore/#readme): Semantic text search
-
-#### Others
-
-In memory storage:
-
-- The R7RS library `(scheme mapping)` aka
-  [SRFI-146](https://srfi.schemers.org/srfi-146/)
-- Log-bassed well-balanced binary-tree
-
-Packing and unpacking:
-
-- exact match `bytesomatic`
-- natural order `lexicographic`
+This wann-be [SRFI](https:/srfi.schemers.org/) should offer grounds
+for apprentices to learn about data storage. It will also offer a
+better story (the best?) for managing data that may be durable, read,
+or written concurrently.
 
 ## Reference
 
-### `okvslite-options`
+### `(make-okdb filepath [block-read block-write]) string? procedure? procedure? → okdb?`
 
-- `okvslite-key-max-size` may be read-only.
-- `okvslite-value-max-size` may be read-only.
-- `okvslite-write-concurrency` may be read-only
-- `okvslite-read-only?`
+Rationale: In SRFI-167, `make-okvs` could take various options. The
+interface was difficult, and did not work well. Instead, of trying to
+define a couple of options, a left aside others. With `okdb` it is
+left to downstream to deal with options. It is the responsability of
+the implementer, and possibly eventually to the user to deal with
+options in an appropriate way. One way, for the implementer to enable
+options is to create a super procedure that a) returns multiple
+values, including the constructor, b) rely on generic methods, or
+something else.
 
-### `(make-okvslite [options]) okvslite-options? → okvslite?` generic
+Return a handle of the database. `FILEPATH` may be a string describing
+the on-disk file or directory where the database will be saved. In the
+case where `okdb` work only from memory, it should be ignored.
 
-- keyword: constructor
+`BLOCK-READ` and `BLOCK-WRITE` if provided will be used to consume or
+produce bytes that will be read or written to disk, possibly using
+cryptography or compression. Both `BLOCK-READ` and `BLOCK-WRITE` will
+take a generator and an accumulator as argument.
 
-Return a handle of the configured backend storage.
+### `(okdb? obj) * → boolean?`
 
-### `(okvslite-estimate-bytes-size db [key [other]]) okvslite? bytevector? bytevector? → integer?` generic
+Returns `#t` if `OBJ` is an `<okdb>` instance. Otherwise, returns
+`#f`.
 
-> **alpha**
->
-> Does it need to be fast? Not sure what is the use-case outside
-> reporting the end-user the size of a "folder". In the case of
-> foundationdb it allows (among other things?) to predict whether a
-> transaction needs to be split into multiple transaction (because
-> transaction max size would be reached, without resorting or reducing
-> the need for error handling inside the transaction.
+### `(okdb-close! db) okdb?`
 
-Return the size of key-value pairs of the specified subspace in bytes.
+Close `DB`. All transactions that completed successfully should be
+available the next time the database is open with `make-okdb` except
+in the case of fully in-memory database.
 
-### `(okvslite-estimate-key-count db [key other]) okvslite? bytevector? bytevector? → integer` generic
+### `(okdb-transaction? obj) * → boolean?`
 
-> **alpha**
->
-> To be able to implement a query optimizer, some statistic are
-> required, those might be implemented on top okvslite, like mongodb
-> does on its own without help from wiredtiger. It will be better to
-> implement that at the storage layer.
+Returns `#t` if `OBJ` is an `<okdb-transaction>` instance. Otherwise,
+returns `#f`.
 
-### `(okvslite-set! db key value) okvslite? bytevector? bytevector?` generic
+### `(okdb-cursor? obj) * → boolean?`
 
-Associate to the bytevector `KEY`, with the bytevector `VALUE`.
+Returns `#t` if `OBJ` is an `<okdb-cursor>` instance. Otherwise,
+returns `#f`.
 
-### `(okvslite-remove! db key) okvslite? bytevector?` generic
+### `(okdb-handle? obj) * → boolean?`
 
-Removes the bytevector `KEY`, and its associated value.
+Returns `#t` if `OBJ` satisfy either `okdb?`, `okdb-transaction?`, or
+`okdb-cursor?`. Otherwise, returns `#f`.
 
-### `(okvslite-close! db) okvslite?` generic
+### `(okdb-key-max-size handle) handle? → number?`
 
-Close database.
+Rationale: Most okvs implementations do not specify the maximum size
+of keys, making both the implementation and its use erratic. The same
+maximum size might not work in all situations, hence it might be
+subject to customization. The important is to guarantee some
+predicatable performance when keys follow that constraint. It also
+makes the implementation of `okdb` easier, among other thing because
+the implementation does not need to have to handle large binaries.
+That is not a negligeable constraint for the user as keys max size are
+not necessarly predicatable, but in any case should be small since in
+most implementations those are kept in memory.
 
-### `(okvslite-in-transaction! db proc [failure [success]]) okvslite? procedure? procedure? procedure? → (values (every any?))` generic
+Return the maximum size of a key for the database associated with
+`HANDLE`. It is an error to call `okdb-key-max-size` if
+`okdb-key-max-size!`  was never called before.
 
-Begin a transaction against `DB`, execute `PROC`. In case of error,
-rollback the transaction and execute `FAILURE` with no arguments. The
-default value of `FAILURE` raise an error. Otherwise, executes
+### `(okdb-key-max-size! okdb size) okdb? number?`
+
+Questions: Can `SIZE` be `+inf.0`? Does it work across restarts?
+Replace `okdb?` with `handle?`? Investigate why FDB does limit those.
+
+Set the maximum `SIZE` of a key for the database `OKDB`.
+
+### `(okdb-value-max-size handle) handle? → number?`
+
+Rationale: Same as the above: it is easier to implement. For the user
+perspective, it is much easier to handle the situation of larger
+values since they can be split without loosing features.
+
+Return the maximum size of a value of the database associated with
+`HANDLE`.
+
+### `(okdb-value-max-size! okdb size) okdb? number?`
+
+Questions: same as `okdb-value-max-size!`
+
+Set the maximum `SIZE` of a value for the database `OKDB`.
+
+### `(okdb-conflict? obj)`
+
+Returns `#t` if `OBJ` is a conflict error. Otherwise returns
+`#f`. Such object may be raised by `okdb-in-transaction`.
+
+### `(okdb-in-transaction okdb proc [failure [success]]) okdb? procedure? procedure? procedure? → (values (every? *))`
+
+Rationales:
+
+- `okdb-in-transaction` does not include a retry logic when
+`okdb-conflict?` is raised because retrying might require to wait
+which depends on the implementation but also and more importantly on
+user code. The user is in the best position to know when, and how to
+retry the transaction. The last resort strategy is not even to retry
+the transaction immediatly, but to put the operation in queue possibly
+persisted in the database, and force the serialization through a
+single thread. In any case, retry should be explicit in user code.
+
+- Serializable scheme trades guarantees regarding the consistency of
+the data, and hence ease of development because the state of the
+database is determinist versus performance. The prescription of
+serializable transactions is a strong requirement, that was thusfar
+almost completly left aside in the industry in favor of snapshot
+isolation. The philosophy here is: *make it work, then make it
+fast*. It is not possible to build reliable systems upon claims that
+are weak, or false, in the general case.
+
+- Nested transactions were ruled out. Nested transactions are similar
+to savepoints or autonomous transactions. They are out because it is
+still not clear whether they put a strain on the implementation that
+does not yield much help in user code.
+
+`okvs-in-transaction` describes the extent of the atomic property, the
+A in [ACID](https://en.wikipedia.org/wiki/ACID), of changes against
+the underlying database. A transaction will apply all database
+coperations in `PROC` or none: all or nothing. When
+`okdb-in-transaction` returns successfully, the changes will be
+visible for future transactions, and implement durability, D in ACID,
+and when the database implements on-disk storage, across restarts. In
+case of error, changes will not be visible to other transactions in
+all cases. Regarding isolation, and consistency, respectively the I
+and C in ACID,
+[serializable](https://en.wikipedia.org/wiki/Serializability)
+transactions is prescribed: the concurrent execution of
+`(okvs-in-transaction okdb proc ...)` should render the database as if
+the concurrent transactions were executed serially ie. without
+overlapping time, in some order, possibly rejecting some of them with
+an error that satisfy `okdb-conflict?`. In particular, it is stronger
+than snapshot isolation.
+
+Begin a transaction against the database, and execute `PROC`. `PROC`
+is called with first and only argument an object that satisfy
+`okdb-transaction?`. In case of error, rollback the transaction and
+execute `FAILURE` with the error object as argument. The default value
+of `FAILURE` re-raise the error with `raise`. Otherwise, executes
 `SUCCESS` with the returned values of `PROC`.  The default value of
-`SUCCESS` is `values`.
+`SUCCESS` is the procedure `values`.
 
-### `(okvslite-transaction-timestamp transaction) okvslite-transaction? → bytevector?` generic
+`okdb` does not support nested transactions.
 
-Return the timestamp of the given `TRANSACTION` as bytevector of 16
-bytes using big-endian. This is not necessarly monotonically
-increasing timestamp (there might be gaps) and does not necessarly
-relate to world clock, but it increments across database open and
-close.
+TODO: what about hooks
 
-### `(okvslite-call-with-cursor db proc) okvslite? procedure? → (values (every any?))` generic
+In case `okvs-in-transactions` raise an error that satisfy
+`okdb-conflict?`, the user may re-run the same transaction taking care
+that `PROC` is idempotent.
 
-Open a cursor against `DB` and call `PROC` with the cursor
-handle. When `PROC` returns, the cursor is closed.
+### `(okdb-call-with-cursor handle proc) okdb-handle? procedure? → (values (every? *))`
 
-### `(okvslite-cursor-seek cursor strategy key) okvslite-cursor? symbol? bytevector? → symbol?` generic
+Open a cursor against `HANDLE` and call `PROC` with it. When `PROC`
+returns, the cursor is closed.
+
+If `HANDLE` satisfy `okdb?`, `okdb-call-with-cursor` must wrap the
+call to `PROC` with `okvs-in-transaction`.
+
+If `HANDLE` satisfy `okdb-cursor?`, `okdb-call-with-cursor` must pass
+a cursor positioned at the same position as `HANDLE` and the same keys
+snapshot.
+
+The produced cursor is not positioned, except when `HANDLE` satisfy
+`okdb-cursor?`, it is an error to call `okdb-cursor-next?`,
+`okdb-cursor-previous?`, `okdb-cursor-key`, or
+`okdb-cursor-value`. When `HANDLE` does not satisfy `okdb-cursor?`,
+the user should call `okdb-cursor-seek?` immediatly after
+`okdb-call-with-cursor`.
+
+The cursor is stable: the cursor will see a snapshot of keys of the
+database taken when `okdb-call-with-cursor` is called. During the
+extent of `PROC`, `okdb-set!` and `okdb-remove!`  will not change the
+position of the cursor, and the cursor will see removed keys and not
+see added keys. Keys which value was changed during cursor navigation,
+that exist when `okdb-call-with-cursor` is called, can be seen.
+
+### `(okdb-estimate-key-count handle [key other [offset [limit]]]) handle? bytevector? bytevector? integer? integer? → integer?`
+
+Rationale: It is helpful to know how big is a range to be able to tell
+which index to use as seed. Imagine a query against two attributes,
+each attribute with their own index and no compound index: being able
+to tell which subspace contains less keys, can speed up significantly
+query time.
+
+Return an estimate count of keys between `KEY` and `OTHER`. If `KEY`
+and `OTHER` are omitted return the approximate count of keys in the
+whole database.
+
+If `OFFSET` is provided, `okdb-estimate-key-count` will skip the first
+`OFFSET` keys from the count.
+
+If `LIMIT` is provided, `okdb-estimate-key-count` will consider `LIMIT`
+keys from the count.
+
+### `(okdb-estimate-bytes-count handle [key [other [offset [limit]]]]) okdb-handle? bytevector? bytevector? integer? integer? → integer?`
+
+Rationale: That is useful in cases where the size of a transaction is
+limited.
+
+Return the estimated size in bytes of key-value pairs in the subspace
+described by `KEY` and `OTHER`. If `OTHER` is omitted, return the
+approximate size of the key-value pair associated with
+`KEY`. Otherwise, return the estimated size of the whole database
+associated with `HANDLE`.
+
+If `OFFSET` is provided, `okdb-estimate-bytes-count` will skip the
+first `OFFSET` keys from the count.
+
+If `LIMIT` is provided, `okdb-estimate-bytes-count` will consider `LIMIT`
+keys from the count.
+
+### `(okdb-set! handle key value) okdb-handle? bytevector? bytevector?`
+
+Associate the bytevector `KEY`, with the bytevector `VALUE`. If
+`HANDLE` satisfy `OKDB?` wrap the operation with
+`okdb-in-transaction`.
+
+If `HANDLE` satisfy `okdb-cursor?`, `okdb-set!` does not change the
+position of `HANDLE`.
+
+### `(okdb-remove! handle key) okdb-handle? bytevector?`
+
+Removes the bytevector `KEY`, and its associated value. If `HANDLE`
+satisfy `OKDB?` wrap the operation with `okdb-in-transaction`.
+
+If `HANDLE` satisfy `okdb-cursor?`, `okdb-set!` does not change the
+position of `HANDLE`.
+
+### `(okdb-cursor-seek cursor strategy key) okdb-cursor? symbol? bytevector? → symbol?`
 
 Position the `CURSOR` using `STRATEGY`. `STRATEGY` can be one of the
 following symbol:
@@ -173,33 +326,71 @@ following symbol:
 - `greater-than-or-equal`
 
 The strategy `less-than-or-equal` will first seek for the biggest key
-that is less than `KEY`, if there is one, it returns the symbol `less`.
-Otherwise, if there is a key that is equal to `KEY` it will return the
-symbol `equal`. If there is no valid position for the given `KEY`, it
-fallback to the symbol `not-found`.
+that is less than `KEY`, if there is one, it returns the symbol
+`less`.  Otherwise, if there is a key that is equal to `KEY` it will
+return the symbol `equal`. Otherwise, it fallbacks to the symbol
+`not-found`.
 
 The strategy `equal` will seek a key that is equal to `KEY`. If there
 is one it will return the symbol `equal`. Otherwise, it returns the
 symbol `not-found`.
 
-The strategy `greater-than-equal` will first seek the smallest key that
-is greater than `KEY`, if there is one, it returns the symbol
+The strategy `greater-than-equal` will first seek the smallest key
+that is greater than `KEY`, if there is one, it returns the symbol
 `greater`.  Otherwise, if there is a key that is equal to `KEY` it
-will return the symbol `equal`. If there is no valid position for the
-given `KEY`, it fallback the symbol `not-found`.
+will return the symbol `equal`. Otherwise, it fallbacks the symbol
+`not-found`.
 
-### `(okvslite-cursor-next? cursor) okvslite-cursor? → boolean?` generic
+### `(okdb-cursor-next? cursor) okdb-cursor? → boolean?`
 
 Move the `CURSOR` to the next key if any. Return `#t` if there is such
 a key. Otherwise returns `#f`. `#f` means the cursor reached the end
 of the key space.
 
-### `(okvslite-cursor-previous? cursor) okvslite-cursor? → boolean?` generic
+### `(okdb-cursor-previous? cursor) okdb-cursor? → boolean?`
 
 Move the `CURSOR` to the previous key if any. Return `#t` if there is
 such a key. Otherwise returns `#f`. `#f` means the cursor reached the
 begining of the key space.
 
-### `(okvslite-query db key [other [offset [limit]]]) okvslite? bytevector? bytevector? integer? integer? → procedure?` generic
+### `(okdb-cursor-key cursor)` okdb-cursor? → bytevector?`
 
-Merge of `okvs-ref`, `okvs-range`, and `okvs-range-reverse` from SRFI-167.
+Return the key bytevector where `CURSOR` is positioned. It is an error
+to call `okdb-cursor-key`, when `CURSOR` reached the begining or end
+of the key space or when `CURSOR` is not positioned.
+
+### `(okdb-cursor-value cursor)` okdb-cursor? → bytevector?`
+
+Return the value bytevector where `CURSOR` is positioned. It is an
+error to call `okdb-cursor-key`, when `CURSOR` reached the begining or
+end of the key space or when `CURSOR` is not positioned.
+
+### `(okdb-query handle key [other [offset [limit]]]) handle? bytevector? bytevector? integer? integer? → (either? bytevector? procedure?)`
+
+`OKDB-QUERY` will query the associated database. If only `KEY` is
+provided it will return the associated value bytevector or `#f`. If
+`OTHER` is provided there is two cases:
+
+- `KEY < OTHER` then `okdb-query` returns a generator with all the
+  key-value pairs present in the database between `KEY` and `OTHER`
+  excluded ie. without the key-value pair associated with `OTHER` if
+  any.
+
+- `OTHER < KEY` then `okdb-query` returns the equivalent of reversing
+  the generator returned by `(okdb-query handle OTHER KEY)`.
+
+If `OFFSET` is provided the generator will skip as much key-value
+pairs from the start of the generator.
+
+If `LIMIT` is provided the generator will generate at most `LIMIT`
+key-value pairs.
+
+### `(okdb-bytevector-next-prefix bytevector) bytevector? → bytevector?`
+
+Return the bytevector that follows `BYTEVECTOR` according to
+lexicographic order that is not prefix of `BYTEVECTOR` such as the
+following code iterates over all keys that have `key` as prefix:
+
+```scheme
+(okdb-query handle key (okdb-bytevector-next-prefix key))
+```
