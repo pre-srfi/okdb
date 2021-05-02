@@ -16,8 +16,6 @@
 - Transaction begin, rollback, before and after commit hooks are
   missing (to implement triggers and inotfy)
 
-- Transaction state is missing.
-
 - Add specification about thread safety.
 
 - Add a parameter `okdb-transaction-hygiene` that may be used to set
