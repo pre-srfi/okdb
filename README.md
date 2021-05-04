@@ -289,17 +289,14 @@ keys from the count.
 
 ### `(okdb-set! handle key value) okdb-handle? bytevector? bytevector?`
 
-Associate the bytevector `KEY`, with the bytevector `VALUE`. If
-`HANDLE` satisfy `OKDB?` wrap the operation with
-`okdb-in-transaction`.
+Associate the bytevector `KEY`, with the bytevector `VALUE`.
 
 If `HANDLE` satisfy `okdb-cursor?`, `okdb-set!` does not change the
 position of `HANDLE`.
 
 ### `(okdb-remove! handle key) okdb-handle? bytevector?`
 
-Removes the bytevector `KEY`, and its associated value. If `HANDLE`
-satisfy `OKDB?` wrap the operation with `okdb-in-transaction`.
+Removes the bytevector `KEY`, and its associated value.
 
 If `HANDLE` satisfy `okdb-cursor?`, `okdb-set!` does not change the
 position of `HANDLE`.
