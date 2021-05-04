@@ -13,16 +13,7 @@
 
 ## Issues
 
-- Transaction begin, rollback, before and after commit hooks are
-  missing (to implement triggers and watches)
-
 - Add specification about thread safety.
-
-- Add a parameter `okdb-transaction-hygiene` that may be used to set
-  the desired serializability guarantee, possibly on a per transaction
-  basis with the help of `parametrize`. Using pseudonyms, that maybe
-  change over time: perfect, strong, weak, none. And also using SQL
-  standard names: serializable, snapshot-isolation...
 
 - Add `okdb-cursor-positioned?`
 
@@ -149,7 +140,36 @@ Set the maximum `SIZE` of a value of the database associated with
 Returns `#t` if `OBJ` is a conflict error. Otherwise returns
 `#f`. Such object may be raised by `okdb-in-transaction`.
 
-### `(okdb-in-transaction okdb proc [failure [success]]) okdb? procedure? procedure? procedure? → (values (every? *))`
+### `(okdb-transaction-hook-begin handle)`
+
+Returns SRFI-173 hook associated with the beginning of the
+transaction.  This hook give a chance to extension libraries to
+initialize internal states.
+
+### `(okdb-transaction-hook-pre-commit handle)`
+
+Returns SRFI-173 hook associated with the end of the transaction.
+This hook give a chance to extension libraries to execute triggers.
+
+### `(okdb-transaction-hook-post-commit handle)`
+
+Returns SRFI-173 hook associated with the success of the transaction.
+This hook may be used to implement features such as notify or watches.
+
+### `(okdb-transaction-hygiene [symbol])` symbol? → symbol?
+
+The parameter `okdb-transaction-hygiene` may be used to get or set
+transaction guarantees related to isolation. The following symbols
+may be accepted:
+
+- read-uncommitted
+- read-committed
+- snapshot
+- serializable
+
+ref: https://source.wiredtiger.com/10.0.0/transactions.html#transaction_isolation
+
+### `(okdb-in-transaction okdb proc [failure [success]]) okdb? procedure? procedure? procedure? → any? ... ↑ okdb-conflict?`
 
 Rationales:
 
@@ -162,37 +182,21 @@ the transaction immediatly, but to put the operation in queue possibly
 persisted in the database, and force the serialization through a
 single thread. In any case, retry should be explicit in user code.
 
-- Serializable scheme trades guarantees regarding the consistency of
-the data, and hence ease of development because the state of the
-database is determinist versus performance. The prescription of
-serializable transactions is a strong requirement, that was thusfar
-almost completly left aside in the industry in favor of snapshot
-isolation. The philosophy here is: *make it work, then make it
-fast*. It is not possible to build reliable systems upon claims that
-are weak, or false, in the general case.
-
 - Nested transactions were ruled out. Nested transactions are similar
 to savepoints or autonomous transactions. They are out because it is
-still not clear whether they put a strain on the implementation that
-does not yield much help in user code.
+still unclear whether they put a strain on the implementation that
+does not yield much benefit in user code.
 
 `okvs-in-transaction` describes the extent of the atomic property, the
 A in [ACID](https://en.wikipedia.org/wiki/ACID), of changes against
 the underlying database. A transaction will apply all database
 coperations in `PROC` or none: all or nothing. When
 `okdb-in-transaction` returns successfully, the changes will be
-visible for future transactions, and implement durability, D in ACID,
-and when the database implements on-disk storage, across restarts. In
-case of error, changes will not be visible to other transactions in
-all cases. Regarding isolation, and consistency, respectively the I
-and C in ACID,
-[serializable](https://en.wikipedia.org/wiki/Serializability)
-transactions is prescribed: the concurrent execution of
-`(okvs-in-transaction okdb proc ...)` should render the database as if
-the concurrent transactions were executed serially ie. without
-overlapping time, in some order, possibly rejecting some of them with
-an error that satisfy `okdb-conflict?`. In particular, it is stronger
-than snapshot isolation.
+visible for future transactions, and implement durability, D in
+ACID. In case of error, changes will not be visible to other
+transactions in all cases. Regarding isolation, and consistency,
+respectively the I and C in ACID, it depends on the parameter
+`okdb-transaction-hygiene`.
 
 Begin a transaction against the database, and execute `PROC`. `PROC`
 is called with first and only argument an object that satisfy
@@ -202,9 +206,18 @@ of `FAILURE` re-raise the error with `raise`. Otherwise, executes
 `SUCCESS` with the returned values of `PROC`.  The default value of
 `SUCCESS` is the procedure `values`.
 
-`okdb` does not support nested transactions.
+When the transaction begin, `okdb-in-transaction` must call the
+procedures associated with `okdb-transaction-hook-begin`.
 
-TODO: what about hooks
+Just before the transaction commit is tried, `okdb-in-transaction`
+must call the procedures associated with
+`okdb-transaction-hook-pre-commit`.
+
+Just after the transaction commit is a success, `okdb-in-transaction`
+must call the procedures associated with
+`okdb-transaction-hook-post-commit`.
+
+`okdb` does not support nested transactions.
 
 In case `okvs-in-transactions` raise an error that satisfy
 `okdb-conflict?`, the user may re-run the same transaction taking care
