@@ -19,7 +19,7 @@
 ## Abstract
 
 General purpose storage backend datastructure for building in-memory
-or on-disk databases that can handle concurrency thanks to ACID
+or on-disk databases that can handle concurrency with ACID
 transactions.
 
 ## Rationale
