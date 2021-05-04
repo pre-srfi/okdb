@@ -223,7 +223,15 @@ In case `okvs-in-transactions` raise an error that satisfy
 `okdb-conflict?`, the user may re-run the same transaction taking care
 that `PROC` is idempotent.
 
-### `(okdb-call-with-cursor handle proc) okdb-handle? procedure? → (values (every? *))`
+### `(okdb-cursor-positioned? cursor) okdb-cursor? → boolean?`
+
+Returns `#t` if `CURSOR` has a position, otherwise returns `#f`.
+
+It is an error to call `okdb-cursor-next?`, `okdb-cursor-previous?`,
+`okdb-cursor-key`, or `okdb-cursor-value`, when the cursor is not
+positioned.
+
+### `(okdb-call-with-cursor handle proc) okdb-handle? procedure? → any? ...`
 
 Open a cursor against `HANDLE` and call `PROC` with it. When `PROC`
 returns, the cursor is closed.
@@ -232,15 +240,10 @@ If `HANDLE` satisfy `okdb?`, `okdb-call-with-cursor` must wrap the
 call to `PROC` with `okvs-in-transaction`.
 
 If `HANDLE` satisfy `okdb-cursor?`, `okdb-call-with-cursor` must pass
-a cursor positioned at the same position as `HANDLE` and the same keys
-snapshot.
+a cursor positioned at the same position as `HANDLE`.
 
 The produced cursor is not positioned, except when `HANDLE` satisfy
-`okdb-cursor?`, it is an error to call `okdb-cursor-next?`,
-`okdb-cursor-previous?`, `okdb-cursor-key`, or
-`okdb-cursor-value`. When `HANDLE` does not satisfy `okdb-cursor?`,
-the user should call `okdb-cursor-seek?` immediatly after
-`okdb-call-with-cursor`.
+`okdb-cursor?` and te associated cursor is also positioned.
 
 The cursor is stable: the cursor will see a snapshot of keys of the
 database taken when `okdb-call-with-cursor` is called. During the
