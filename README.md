@@ -14,7 +14,7 @@
 ## Issues
 
 - Transaction begin, rollback, before and after commit hooks are
-  missing (to implement triggers and inotfy)
+  missing (to implement triggers and watches)
 
 - Add specification about thread safety.
 
@@ -105,9 +105,7 @@ Returns `#t` if `OBJ` is an `<okdb>` instance. Otherwise, returns
 
 ### `(okdb-close! db) okdb?`
 
-Close `DB`. All transactions that completed successfully should be
-available the next time the database is open with `make-okdb` except
-in the case of fully in-memory database.
+Close `DB`.
 
 ### `(okdb-transaction? obj) * → boolean?`
 
