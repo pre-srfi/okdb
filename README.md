@@ -13,8 +13,6 @@
 
 ## Issues
 
-- Add `okdb-cursor-positioned?`
-
 - Limit the key space to `#x00` until `#xFF` excluded, and use the
   rest of the key space for something...
 
