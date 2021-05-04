@@ -13,8 +13,6 @@
 
 ## Issues
 
-- Add specification about thread safety.
-
 - Add `okdb-cursor-positioned?`
 
 - Limit the key space to `#x00` until `#xFF` excluded, and use the
