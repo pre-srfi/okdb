@@ -1,4 +1,4 @@
-# 2021/04/10 - (import (okdb))
+# (import (okdb))
 
 ![The abstraction of architecture of the Abu Dhabi Louvre Museum ceiling it’s a piece of art on it’s own.](alvaro-pinot-czDvRp5V2b0-unsplash.jpg)
 
