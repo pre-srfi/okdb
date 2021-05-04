@@ -6,11 +6,6 @@
 
 **Rework draft.**
 
-## CHANGELOG
-
-- 2021/04/10: v0
-- 2021/04/23: misc
-
 ## Issues
 
 - Limit the key space to `#x00` until `#xFF` excluded, and use the
