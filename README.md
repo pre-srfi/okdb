@@ -136,6 +136,36 @@ Set the maximum `SIZE` of a value of the database associated with
 Returns `#t` if `OBJ` is a conflict error. Otherwise returns
 `#f`. Such object may be raised by `okdb-in-transaction`.
 
+### `(make-okdb-transaction-parameter init)` any? → procedure?
+
+Returns a procedure that may take one or two arguments:
+
+- One argument: the procedure takes a transaction as first argument
+and returns the current value for the given transaction. `INIT` is the
+initial value.
+
+- Two arguments: the procedure takes a transaction as first argument,
+and a new value for the associated transaction. It returns no values.
+
+In the following example, `okdb-in-transaction` will return `#f`:
+
+```scheme
+(define read-only? (make-okdb-transaction-parameter #t))
+
+(define (proc tx)
+  (display (read-only? tx)) ;; => #t
+  (okdb-set! tx #u(42) #u8(13 37))
+  (read-only? tx #f)
+  ...
+  (read-only? tx))
+
+(okdb-in-transaction okdb proc) ;; => #f
+```
+
+### `(okdb-transaction-parametrize ((parameter value) ...) expr ...)`
+
+Similar to `parametrize`.
+
 ### `(okdb-transaction-hook-begin handle)`
 
 Returns SRFI-173 hook associated with the beginning of the
