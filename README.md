@@ -84,7 +84,7 @@ or written concurrently.
 
 ## Reference
 
-### `(make-okdb filepath [block-read block-write]) string? procedure? procedure? → okdb?`
+### `(make-okdb) → okdb?`
 
 Rationale: In SRFI-167, `make-okvs` could take various options. The
 interface was difficult, and did not work well. Instead, of trying to
@@ -96,14 +96,7 @@ options is to create a super procedure that a) returns multiple
 values, including the constructor, b) rely on generic methods, or
 something else.
 
-Return a handle of the database. `FILEPATH` may be a string describing
-the on-disk file or directory where the database will be saved. In the
-case where `okdb` work only from memory, it should be ignored.
-
-`BLOCK-READ` and `BLOCK-WRITE` if provided will be used to consume or
-produce bytes that will be read or written to disk, possibly using
-cryptography or compression. Both `BLOCK-READ` and `BLOCK-WRITE` will
-take a generator and an accumulator as argument.
+Return a handle of the database.
 
 ### `(okdb? obj) * → boolean?`
 
