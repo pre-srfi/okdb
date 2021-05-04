@@ -124,42 +124,25 @@ Returns `#t` if `OBJ` satisfy either `okdb?`, `okdb-transaction?`, or
 
 ### `(okdb-key-max-size handle) handle? → number?`
 
-Rationale: Most okvs implementations do not specify the maximum size
-of keys, making both the implementation and its use erratic. The same
-maximum size might not work in all situations, hence it might be
-subject to customization. The important is to guarantee some
-predicatable performance when keys follow that constraint. It also
-makes the implementation of `okdb` easier, among other thing because
-the implementation does not need to have to handle large binaries.
-That is not a negligeable constraint for the user as keys max size are
-not necessarly predicatable, but in any case should be small since in
-most implementations those are kept in memory.
-
 Return the maximum size of a key for the database associated with
-`HANDLE`. It is an error to call `okdb-key-max-size` if
-`okdb-key-max-size!`  was never called before.
+`HANDLE`. If `okdb-key-max-size!` was never called, return a default
+value.
 
-### `(okdb-key-max-size! okdb size) okdb? number?`
+### `(okdb-key-max-size! handle size) okdb? number?`
 
-Questions: Can `SIZE` be `+inf.0`? Does it work across restarts?
-Replace `okdb?` with `handle?`? Investigate why FDB does limit those.
-
-Set the maximum `SIZE` of a key for the database `OKDB`.
+Set the maximum `SIZE` of a key for the database associated with
+`HANDLE`. If `SIZE` is not supported, it is an error.
 
 ### `(okdb-value-max-size handle) handle? → number?`
 
-Rationale: Same as the above: it is easier to implement. For the user
-perspective, it is much easier to handle the situation of larger
-values since they can be split without loosing features.
-
 Return the maximum size of a value of the database associated with
-`HANDLE`.
+`HANDLE`. If `okdb-value-max-size!` was never called, return a default
+value.
 
-### `(okdb-value-max-size! okdb size) okdb? number?`
+### `(okdb-value-max-size! handle size) handle? number?`
 
-Questions: same as `okdb-value-max-size!`
-
-Set the maximum `SIZE` of a value for the database `OKDB`.
+Set the maximum `SIZE` of a value of the database associated with
+`OKDB`.
 
 ### `(okdb-conflict? obj)`
 
